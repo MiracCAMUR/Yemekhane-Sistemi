@@ -1,0 +1,15 @@
+server:
+  port: 8000
+
+app:
+  datasource:
+    yazma:
+      jdbc-url: jdbc:mysql://${DB_YAZMA_HOST:mysql-primary}:${DB_PORT:3306}/${DB_ADI:yemekhane}?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_tr_0900_ai_ci&serverTimezone=Europe/Istanbul&allowPublicKeyRetrieval=true&useSSL=false
+      username: ${DB_KULLANICI:yemekhane_app}
+      password: ${DB_SIFRE:Uyg_2026}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+    okuma:
+      jdbc-url: jdbc:mysql://${DB_OKUMA_HOST:mysql-replica}:${DB_PORT:3306}/${DB_ADI:yemekhane}?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_tr_0900_ai_ci&serverTimezone=Europe/Istanbul&allowPublicKeyRetrieval=true&useSSL=false
+      username: ${DB_KULLANICI:yemekhane_app}
+      password: ${DB_SIFRE:Uyg_2026}
+      driver-class-name: com.mysql.cj.jdbc.Driver
