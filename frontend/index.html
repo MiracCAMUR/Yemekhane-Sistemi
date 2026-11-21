@@ -42,8 +42,8 @@
       </form>
 
       <div style="margin-top: 1.25rem; padding-top: 0.85rem; border-top: 1px solid var(--cizgi);">
-        <div style="font-size: var(--boyut-kucuk); color: var(--metin-soluk);">Hızlı Test Hesapları (Şifre: Yemek2026!):</div>
-        <div class="hizli-giris-grup">
+        <div style="font-size: var(--boyut-kucuk); color: var(--metin-soluk); margin-bottom: 0.5rem;">Hızlı Test Hesapları (Şifre: Yemek2026!)</div>
+        <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
           <button type="button" class="dugme dugme-kucuk" data-hizli="mehmet.yildiz@ogr.kampus.edu.tr">Öğrenci (Mehmet)</button>
           <button type="button" class="dugme dugme-kucuk" data-hizli="ayse.demir@ogr.kampus.edu.tr">Düşük Bakiye (Ayşe)</button>
           <button type="button" class="dugme dugme-kucuk" data-hizli="murat.kaya@kampus.edu.tr">Personel (Murat)</button>
@@ -59,6 +59,7 @@
         <button type="button" class="sekme-btn" data-sekme="haftalik">Haftalık Menü</button>
         <button type="button" class="sekme-btn" data-sekme="rezervasyonlar">Rezervasyonlarım</button>
         <button type="button" class="sekme-btn" data-sekme="bakiye">Bakiye &amp; Hareketler</button>
+        <button type="button" class="sekme-btn" data-sekme="turnike">Turnike Simülasyonu</button>
         <button type="button" id="sekme-yonetici-btn" class="sekme-btn gizli" data-sekme="yonetici">Yönetici Paneli</button>
       </nav>
 
@@ -78,6 +79,7 @@
           <div style="flex: 0 0 auto;">
             <button id="btn-gunluk-getir" type="button" class="dugme">Menüleri Göster</button>
           </div>
+          <div id="gunluk-cache-bilgi" style="margin-left: auto; font-size: var(--boyut-kucuk);"></div>
         </div>
         <div id="gunluk-liste" class="izgara-2"></div>
       </section>
@@ -99,6 +101,7 @@
             <div style="flex: 0 0 auto;">
               <button id="btn-haftalik-getir" type="button" class="dugme">Haftayı Listele</button>
             </div>
+            <div id="haftalik-cache-bilgi" style="margin-left: auto; font-size: var(--boyut-kucuk);"></div>
           </div>
           <div id="haftalik-liste" class="izgara-2"></div>
         </div>
@@ -187,6 +190,58 @@
                   </tr>
                 </thead>
                 <tbody id="hareket-tablo"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. TURNIKE SIMULASYONU (ASAMA 3) -->
+      <section id="panel-turnike" class="gizli">
+        <div class="izgara-2">
+          <div class="kart">
+            <h2>Turnike Kart Okutma Simülasyonu</h2>
+            <p style="font-size: var(--boyut-kucuk); color: var(--metin-soluk);">
+              Kullanıcı ve yemekhane seçip kart okutarak &lt;code&gt;sp_turnike_gecis&lt;/code&gt; prosedürünü çalıştırın. Zaman boş bırakılırsa sunucu anlık saatini (&lt;code&gt;NOW()&lt;/code&gt;) kullanır.
+            </p>
+            <form id="form-turnike">
+              <div style="margin-bottom: 0.75rem;">
+                <label for="turnike-kullanici">Kart Sahibi (Kullanıcı)</label>
+                <select id="turnike-kullanici" required></select>
+              </div>
+              <div style="margin-bottom: 0.75rem;">
+                <label for="turnike-yemekhane">Turnike Konumu (Yemekhane)</label>
+                <select id="turnike-yemekhane" required></select>
+              </div>
+              <div style="margin-bottom: 0.65rem;">
+                <label for="turnike-zaman">Geçiş Zamanı (İsteğe Bağlı Test Saati)</label>
+                <input id="turnike-zaman" type="datetime-local">
+              </div>
+              <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.9rem;">
+                <button type="button" id="btn-zaman-simdi" class="dugme dugme-ikincil dugme-kucuk">Şu An (NOW)</button>
+                <button type="button" id="btn-zaman-ogle" class="dugme dugme-ikincil dugme-kucuk">Bugün Öğle (12:15)</button>
+                <button type="button" id="btn-zaman-aksam" class="dugme dugme-ikincil dugme-kucuk">Bugün Akşam (18:15)</button>
+              </div>
+              <button type="submit" class="dugme" style="width: 100%;">Kart Okut (Turnikeden Geç)</button>
+            </form>
+          </div>
+
+          <div class="kart">
+            <h2>Turnike Geçiş Kayıtları</h2>
+            <div id="turnike-sonuc" style="margin-bottom: 0.75rem; font-size: var(--boyut-kucuk);"></div>
+            <div class="tablo-kaydir">
+              <table class="tablo">
+                <thead>
+                  <tr>
+                    <th>Zaman</th>
+                    <th>Kullanıcı</th>
+                    <th>Yemekhane</th>
+                    <th>Sonuç</th>
+                  </tr>
+                </thead>
+                <tbody id="turnike-log-tablo">
+                  <tr><td colspan="4">Henüz turnike geçişi yapılmadı.</td></tr>
+                </tbody>
               </table>
             </div>
           </div>

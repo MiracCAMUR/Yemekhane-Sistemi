@@ -1,5 +1,6 @@
 let aktifKullanici = null;
 let referansVeri = { yemekhaneler: [], ogunler: [], yemekler: [] };
+let turnikeLoglar = [];
 
 const bugunStr = () => new Date().toISOString().slice(0, 10);
 const gunEkle = (tarihStr, gun) => {
@@ -21,7 +22,7 @@ function bildirimGoster(mesaj, tur = 'basari') {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-async function apiIstek(yol, secenekler = {}) {
+async function apiIstekDetayli(yol, secenekler = {}) {
   const ayar = {
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -32,7 +33,34 @@ async function apiIstek(yol, secenekler = {}) {
   if (!yanit.ok) {
     throw new Error(veri.hata || ('İstek başarısız (HTTP ' + yanit.status + ')'));
   }
-  return veri;
+  return {
+    veri,
+    cache: yanit.headers.get('X-Cache'),
+    sureMs: yanit.headers.get('X-Response-Time-Ms')
+  };
+}
+
+async function apiIstek(yol, secenekler = {}) {
+  const sonuc = await apiIstekDetayli(yol, secenekler);
+  return sonuc.veri;
+}
+
+function cacheRozetGuncelle(elementId, cacheDurum, sureMs) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  if (!cacheDurum) {
+    el.textContent = '';
+    return;
+  }
+  const hit = cacheDurum === 'HIT';
+  el.innerHTML = '';
+  const rozet = document.createElement('span');
+  rozet.className = 'etiket';
+  rozet.style.fontWeight = '700';
+  rozet.style.background = hit ? '#dcfce7' : '#fef3c7';
+  rozet.style.color = hit ? '#166534' : '#92400e';
+  rozet.textContent = 'Redis: ' + cacheDurum + (sureMs ? ' (' + sureMs + ' ms)' : '');
+  el.appendChild(rozet);
 }
 
 function kullaniciUstCubukGuncelle() {
@@ -68,13 +96,15 @@ async function referanslariYukle() {
     });
   });
 
-  const ymYh = document.getElementById('ym-yemekhane');
-  ymYh.innerHTML = '';
-  referansVeri.yemekhaneler.forEach(y => {
-    const opt = document.createElement('option');
-    opt.value = y.id;
-    opt.textContent = y.ad;
-    ymYh.appendChild(opt);
+  ['ym-yemekhane', 'turnike-yemekhane'].forEach(id => {
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    referansVeri.yemekhaneler.forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = y.id;
+      opt.textContent = y.ad;
+      el.appendChild(opt);
+    });
   });
 
   const ymOgun = document.getElementById('ym-ogun');
@@ -265,7 +295,9 @@ function menuKartiOlustur(m, rezervasyonAktif = true) {
 async function gunlukMenuleriYukle() {
   const tarih = document.getElementById('filtre-tarih').value || bugunStr();
   const yh = document.getElementById('filtre-yemekhane').value;
-  const menuler = await apiIstek('/menuler?baslangic=' + tarih + '&bitis=' + tarih + '&yemekhaneId=' + yh);
+  const yanit = await apiIstekDetayli('/menuler?baslangic=' + tarih + '&bitis=' + tarih + '&yemekhaneId=' + yh);
+  cacheRozetGuncelle('gunluk-cache-bilgi', yanit.cache, yanit.sureMs);
+  const menuler = yanit.veri;
   const liste = document.getElementById('gunluk-liste');
   liste.innerHTML = '';
   if (menuler.length === 0) {
@@ -279,7 +311,9 @@ async function haftalikMenuleriYukle() {
   const bas = document.getElementById('hafta-baslangic').value || bugunStr();
   const bit = gunEkle(bas, 6);
   const yh = document.getElementById('hafta-yemekhane').value;
-  const menuler = await apiIstek('/menuler?baslangic=' + bas + '&bitis=' + bit + '&yemekhaneId=' + yh);
+  const yanit = await apiIstekDetayli('/menuler?baslangic=' + bas + '&bitis=' + bit + '&yemekhaneId=' + yh);
+  cacheRozetGuncelle('haftalik-cache-bilgi', yanit.cache, yanit.sureMs);
+  const menuler = yanit.veri;
   const liste = document.getElementById('haftalik-liste');
   liste.innerHTML = '';
   if (menuler.length === 0) {
@@ -373,6 +407,49 @@ async function bakiyeHareketleriniYukle() {
   });
 }
 
+async function turnikeKullanicilariniYukle() {
+  const liste = await apiIstek('/turnike/kullanicilar');
+  const sec = document.getElementById('turnike-kullanici');
+  const oncekiSecim = sec.value;
+  sec.innerHTML = '';
+  liste.forEach(k => {
+    const opt = document.createElement('option');
+    opt.value = k.id;
+    const no = k.ogrenci_no ? (' · ' + k.ogrenci_no) : '';
+    opt.textContent = k.ad + ' ' + k.soyad + ' (' + k.rol + no + ') - Bakiye: ' + paraFormat(k.bakiye);
+    sec.appendChild(opt);
+  });
+  if (oncekiSecim) {
+    sec.value = oncekiSecim;
+  } else if (aktifKullanici) {
+    sec.value = String(aktifKullanici.id);
+  }
+}
+
+function turnikeLogTabloGuncelle() {
+  const tbody = document.getElementById('turnike-log-tablo');
+  tbody.innerHTML = '';
+  if (turnikeLoglar.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4">Henüz turnike geçişi yapılmadı.</td></tr>';
+    return;
+  }
+  turnikeLoglar.forEach(kayit => {
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td');
+    td1.textContent = kayit.zaman;
+    const td2 = document.createElement('td');
+    td2.textContent = kayit.kullanici;
+    const td3 = document.createElement('td');
+    td3.textContent = kayit.yemekhane;
+    const td4 = document.createElement('td');
+    td4.style.fontWeight = '700';
+    td4.style.color = kayit.basarili ? 'var(--basari)' : 'var(--hata)';
+    td4.textContent = kayit.mesaj;
+    tr.append(td1, td2, td3, td4);
+    tbody.appendChild(tr);
+  });
+}
+
 async function yoneticiRaporYukle() {
   const tarih = document.getElementById('rapor-tarih').value || bugunStr();
   const liste = await apiIstek('/yonetici/rapor?tarih=' + tarih);
@@ -450,13 +527,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('.sekme-btn').forEach(b => b.classList.remove('aktif'));
       btn.classList.add('aktif');
       const hedef = btn.dataset.sekme;
-      ['gunluk', 'haftalik', 'rezervasyonlar', 'bakiye', 'yonetici'].forEach(p => {
+      ['gunluk', 'haftalik', 'rezervasyonlar', 'bakiye', 'turnike', 'yonetici'].forEach(p => {
         document.getElementById('panel-' + p).classList.toggle('gizli', p !== hedef);
       });
       if (hedef === 'gunluk') await gunlukMenuleriYukle();
       if (hedef === 'haftalik') await haftalikMenuleriYukle();
       if (hedef === 'rezervasyonlar') await rezervasyonlariYukle();
       if (hedef === 'bakiye') await bakiyeHareketleriniYukle();
+      if (hedef === 'turnike') await turnikeKullanicilariniYukle();
       if (hedef === 'yonetici') await yoneticiRaporYukle();
     });
   });
@@ -464,6 +542,45 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-gunluk-getir').addEventListener('click', gunlukMenuleriYukle);
   document.getElementById('btn-haftalik-getir').addEventListener('click', haftalikMenuleriYukle);
   document.getElementById('btn-rapor-getir').addEventListener('click', yoneticiRaporYukle);
+
+  document.getElementById('btn-zaman-simdi').addEventListener('click', () => {
+    document.getElementById('turnike-zaman').value = '';
+  });
+  document.getElementById('btn-zaman-ogle').addEventListener('click', () => {
+    document.getElementById('turnike-zaman').value = bugunStr() + 'T12:15';
+  });
+  document.getElementById('btn-zaman-aksam').addEventListener('click', () => {
+    document.getElementById('turnike-zaman').value = bugunStr() + 'T18:15';
+  });
+
+  document.getElementById('form-turnike').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const kullaniciSel = document.getElementById('turnike-kullanici');
+    const yemekhaneSel = document.getElementById('turnike-yemekhane');
+    const zamanDeger = document.getElementById('turnike-zaman').value;
+    const kullaniciAd = kullaniciSel.options[kullaniciSel.selectedIndex]?.text.split(' - Bakiye')[0] || '';
+    const yemekhaneAd = yemekhaneSel.options[yemekhaneSel.selectedIndex]?.text || '';
+    const gosterimZaman = zamanDeger ? zamanDeger.replace('T', ' ') : 'NOW() (Anlık)';
+
+    try {
+      const sonuc = await apiIstek('/turnike/gecis', {
+        method: 'POST',
+        body: JSON.stringify({
+          kullanici_id: Number(kullaniciSel.value),
+          yemekhane_id: Number(yemekhaneSel.value),
+          zaman: zamanDeger || null
+        })
+      });
+      const ozet = 'Onaylandı · Öğün: ' + sonuc.ogun + ' (Rez #' + sonuc.rezervasyon_id + ')';
+      bildirimGoster('Turnike geçişi başarılı! ' + ozet, 'basari');
+      turnikeLoglar.unshift({ zaman: gosterimZaman, kullanici: kullaniciAd, yemekhane: yemekhaneAd, basarili: true, mesaj: ozet });
+      turnikeLogTabloGuncelle();
+    } catch (err) {
+      bildirimGoster(err.message, 'hata');
+      turnikeLoglar.unshift({ zaman: gosterimZaman, kullanici: kullaniciAd, yemekhane: yemekhaneAd, basarili: false, mesaj: err.message });
+      turnikeLogTabloGuncelle();
+    }
+  });
 
   document.querySelectorAll('[data-tutar]').forEach(btn => {
     btn.addEventListener('click', () => {

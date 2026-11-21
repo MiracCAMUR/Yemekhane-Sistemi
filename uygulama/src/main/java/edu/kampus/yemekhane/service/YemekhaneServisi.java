@@ -1,23 +1,33 @@
 package edu.kampus.yemekhane.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.kampus.yemekhane.exception.IsKuraliHatasi;
 import edu.kampus.yemekhane.repository.YemekhaneRepository;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.*;
 
 @Service
 public class YemekhaneServisi {
 
+    private static final String MENU_ON_EK = "menu:";
+    private static final Duration MENU_TTL = Duration.ofMinutes(5);
+
     private final YemekhaneRepository repo;
     private final PasswordEncoder passwordEncoder;
+    private final StringRedisTemplate redis;
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
-    public YemekhaneServisi(YemekhaneRepository repo, PasswordEncoder passwordEncoder) {
+    public YemekhaneServisi(YemekhaneRepository repo, PasswordEncoder passwordEncoder, StringRedisTemplate redis) {
         this.repo = repo;
         this.passwordEncoder = passwordEncoder;
+        this.redis = redis;
     }
 
     public Map<String, Object> girisYap(String eposta, String sifre) {
@@ -82,16 +92,68 @@ public class YemekhaneServisi {
         return sonuc;
     }
 
+    public void menuOnbellegiTemizle() {
+        try {
+            Set<String> anahtarlar = redis.keys(MENU_ON_EK + "*");
+            if (anahtarlar != null && !anahtarlar.isEmpty()) {
+                redis.delete(anahtarlar);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    public Map<String, Object> menulerOnbellekli(String baslangic, String bitis, Integer yemekhaneId) {
+        String bas = (baslangic == null || baslangic.isBlank()) ? LocalDate.now().toString() : baslangic;
+        String bit = (bitis == null || bitis.isBlank()) ? bas : bitis;
+        String anahtar = MENU_ON_EK + bas + ":" + bit + ":" + (yemekhaneId == null || yemekhaneId <= 0 ? "tum" : yemekhaneId);
+
+        long t0 = System.nanoTime();
+        try {
+            String cached = redis.opsForValue().get(anahtar);
+            if (cached != null) {
+                List<Map<String, Object>> liste = mapper.readValue(cached, new TypeReference<List<Map<String, Object>>>() {});
+                double ms = Math.round(((System.nanoTime() - t0) / 1_000_000.0) * 100.0) / 100.0;
+                return Map.of("veri", liste, "cache", "HIT", "sure_ms", ms);
+            }
+        } catch (Exception ignored) {
+        }
+
+        List<Map<String, Object>> sonuc = menuleriGetir(bas, bit, yemekhaneId);
+        try {
+            redis.opsForValue().set(anahtar, mapper.writeValueAsString(sonuc), MENU_TTL);
+        } catch (Exception ignored) {
+        }
+        double ms = Math.round(((System.nanoTime() - t0) / 1_000_000.0) * 100.0) / 100.0;
+        return Map.of("veri", sonuc, "cache", "MISS", "sure_ms", ms);
+    }
+
     public Map<String, Object> rezervasyonYap(Long kullaniciId, Long menuId) {
-        return repo.spRezervasyonYap(kullaniciId, menuId);
+        Map<String, Object> res = repo.spRezervasyonYap(kullaniciId, menuId);
+        menuOnbellegiTemizle();
+        return res;
     }
 
     public Map<String, Object> rezervasyonIptal(Long kullaniciId, Long rezervasyonId) {
-        return repo.spRezervasyonIptal(kullaniciId, rezervasyonId);
+        Map<String, Object> res = repo.spRezervasyonIptal(kullaniciId, rezervasyonId);
+        menuOnbellegiTemizle();
+        return res;
     }
 
     public Map<String, Object> bakiyeYukle(Long kullaniciId, BigDecimal tutar) {
         return repo.spBakiyeYukle(kullaniciId, tutar);
+    }
+
+    public Map<String, Object> turnikeGecis(Long kullaniciId, Integer yemekhaneId, String zamanStr) {
+        String zaman = null;
+        if (zamanStr != null && !zamanStr.isBlank()) {
+            zaman = zamanStr.trim().replace("T", " ");
+            if (zaman.length() == 16) {
+                zaman += ":00";
+            }
+        }
+        Map<String, Object> res = repo.spTurnikeGecis(kullaniciId, yemekhaneId, zaman);
+        menuOnbellegiTemizle();
+        return res;
     }
 
     public void degerlendirmeEkle(Long kullaniciId, Long menuId, int puan, String yorum) {
@@ -103,6 +165,7 @@ public class YemekhaneServisi {
             throw new IsKuraliHatasi("Yalnızca turnikeden geçerek kullandığınız menüleri değerlendirebilirsiniz.");
         }
         repo.degerlendirmeKaydet(kullaniciId, menuId, puan, yorum == null ? "" : yorum.trim());
+        menuOnbellegiTemizle();
     }
 
     public Long yoneticiMenuEkle(Map<String, Object> body) {
@@ -116,7 +179,9 @@ public class YemekhaneServisi {
             throw new IsKuraliHatasi("Menü için en az bir yemek seçmelisiniz.");
         }
         List<Integer> yemekIdler = hamListe.stream().map(x -> ((Number) x).intValue()).toList();
-        return repo.yeniMenuOlustur(yemekhaneId, tarih, ogunId, ogrFiyat, perFiyat, yemekIdler);
+        Long yeniId = repo.yeniMenuOlustur(yemekhaneId, tarih, ogunId, ogrFiyat, perFiyat, yemekIdler);
+        menuOnbellegiTemizle();
+        return yeniId;
     }
 
     public void yoneticiMenuGuncelle(Long menuId, Map<String, Object> body) {
@@ -125,6 +190,7 @@ public class YemekhaneServisi {
         List<?> hamListe = (List<?>) body.get("yemek_idler");
         List<Integer> yemekIdler = hamListe == null ? List.of() : hamListe.stream().map(x -> ((Number) x).intValue()).toList();
         repo.menuGuncelle(menuId, ogrFiyat, perFiyat, yemekIdler);
+        menuOnbellegiTemizle();
     }
 
     public YemekhaneRepository getRepo() {

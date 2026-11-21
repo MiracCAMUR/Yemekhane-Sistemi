@@ -13,3 +13,8 @@ app:
       username: ${DB_KULLANICI:yemekhane_app}
       password: ${DB_SIFRE:Uyg_2026}
       driver-class-name: com.mysql.cj.jdbc.Driver
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}

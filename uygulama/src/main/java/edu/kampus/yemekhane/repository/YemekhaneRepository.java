@@ -38,6 +38,11 @@ public class YemekhaneRepository {
                 id);
     }
 
+    public List<Map<String, Object>> tumKullanicilarOzet() {
+        return okuma.queryForList(
+                "SELECT id, ad, soyad, eposta, rol, ogrenci_no, bakiye FROM kullanicilar WHERE aktif = 1 ORDER BY id");
+    }
+
     // --- YEMEKHANELER & OGUNLER & KATEGORILER (OKUMA: REPLIKA) ---
     public List<Map<String, Object>> yemekhaneleriGetir() {
         return okuma.queryForList("SELECT id, ad, konum, kapasite FROM yemekhaneler ORDER BY id");
@@ -101,6 +106,10 @@ public class YemekhaneRepository {
 
     public Map<String, Object> spBakiyeYukle(Long kullaniciId, BigDecimal tutar) {
         return yazma.queryForMap("CALL sp_bakiye_yukle(?, ?)", kullaniciId, tutar);
+    }
+
+    public Map<String, Object> spTurnikeGecis(Long kullaniciId, Integer yemekhaneId, String zaman) {
+        return yazma.queryForMap("CALL sp_turnike_gecis(?, ?, ?)", kullaniciId, yemekhaneId, zaman);
     }
 
     public List<Map<String, Object>> kullaniciRezervasyonlariniGetir(Long kullaniciId) {

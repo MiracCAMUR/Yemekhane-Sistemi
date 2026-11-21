@@ -101,11 +101,17 @@ public class YemekhaneController {
     }
 
     @GetMapping("/menuler")
-    public List<Map<String, Object>> menuler(
+    public ResponseEntity<List<Map<String, Object>>> menuler(
             @RequestParam(required = false) String baslangic,
             @RequestParam(required = false) String bitis,
             @RequestParam(required = false) Integer yemekhaneId) {
-        return servis.menuleriGetir(baslangic, bitis, yemekhaneId);
+        Map<String, Object> sonuc = servis.menulerOnbellekli(baslangic, bitis, yemekhaneId);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> veri = (List<Map<String, Object>>) sonuc.get("veri");
+        return ResponseEntity.ok()
+                .header("X-Cache", String.valueOf(sonuc.get("cache")))
+                .header("X-Response-Time-Ms", String.valueOf(sonuc.get("sure_ms")))
+                .body(veri);
     }
 
     @GetMapping("/menuler/{menuId}/yorumlar")
@@ -178,5 +184,20 @@ public class YemekhaneController {
         zorunluYonetici(req);
         String t = (tarih == null || tarih.isBlank()) ? LocalDate.now().toString() : tarih;
         return servis.getRepo().yoneticiRaporGetir(t);
+    }
+
+    @GetMapping("/turnike/kullanicilar")
+    public List<Map<String, Object>> turnikeKullanicilar(HttpServletRequest req) {
+        zorunluKullanici(req);
+        return servis.getRepo().tumKullanicilarOzet();
+    }
+
+    @PostMapping("/turnike/gecis")
+    public Map<String, Object> turnikeGecis(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        zorunluKullanici(req);
+        Long kullaniciId = ((Number) body.get("kullanici_id")).longValue();
+        Integer yemekhaneId = ((Number) body.get("yemekhane_id")).intValue();
+        String zaman = body.get("zaman") != null ? String.valueOf(body.get("zaman")) : null;
+        return servis.turnikeGecis(kullaniciId, yemekhaneId, zaman);
     }
 }
