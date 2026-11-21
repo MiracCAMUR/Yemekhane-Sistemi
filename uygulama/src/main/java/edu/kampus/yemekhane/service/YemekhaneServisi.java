@@ -48,6 +48,8 @@ public class YemekhaneServisi {
         }
         Map<String, Object> temiz = new LinkedHashMap<>(k);
         temiz.remove("sifre_hash");
+        Long id = ((Number) temiz.get("id")).longValue();
+        temiz.put("alerjen_idler", repo.kullaniciAlerjenIdleriGetir(id));
         return temiz;
     }
 
@@ -56,7 +58,14 @@ public class YemekhaneServisi {
         if (sonuc.isEmpty()) {
             throw new IsKuraliHatasi("Kullanıcı bulunamadı.", 401);
         }
-        return sonuc.get(0);
+        Map<String, Object> k = new LinkedHashMap<>(sonuc.get(0));
+        k.put("alerjen_idler", repo.kullaniciAlerjenIdleriGetir(kullaniciId));
+        return k;
+    }
+
+    public List<Integer> kullaniciAlerjenleriGuncelle(Long kullaniciId, List<Integer> alerjenIdler) {
+        repo.kullaniciAlerjenleriKaydet(kullaniciId, alerjenIdler);
+        return repo.kullaniciAlerjenIdleriGetir(kullaniciId);
     }
 
     public List<Map<String, Object>> menuleriGetir(String baslangic, String bitis, Integer yemekhaneId) {
@@ -127,8 +136,8 @@ public class YemekhaneServisi {
         return Map.of("veri", sonuc, "cache", "MISS", "sure_ms", ms);
     }
 
-    public Map<String, Object> rezervasyonYap(Long kullaniciId, Long menuId) {
-        Map<String, Object> res = repo.spRezervasyonYap(kullaniciId, menuId);
+    public Map<String, Object> rezervasyonYap(Long kullaniciId, Long menuId, String porsiyon) {
+        Map<String, Object> res = repo.spRezervasyonYap(kullaniciId, menuId, porsiyon);
         menuOnbellegiTemizle();
         return res;
     }

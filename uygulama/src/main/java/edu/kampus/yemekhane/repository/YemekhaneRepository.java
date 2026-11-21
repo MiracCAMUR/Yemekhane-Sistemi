@@ -25,7 +25,6 @@ public class YemekhaneRepository {
         this.okuma = okuma;
     }
 
-    // --- KULLANICI & AUTH ---
     public List<Map<String, Object>> kullaniciBulEpostaIle(String eposta) {
         return okuma.queryForList(
                 "SELECT id, ad, soyad, eposta, sifre_hash, rol, ogrenci_no, bakiye, aktif FROM kullanicilar WHERE eposta = ?",
@@ -43,7 +42,28 @@ public class YemekhaneRepository {
                 "SELECT id, ad, soyad, eposta, rol, ogrenci_no, bakiye FROM kullanicilar WHERE aktif = 1 ORDER BY id");
     }
 
-    // --- YEMEKHANELER & OGUNLER & KATEGORILER (OKUMA: REPLIKA) ---
+    public List<Map<String, Object>> tumAlerjenleriGetir() {
+        return okuma.queryForList("SELECT id, ad FROM alerjenler ORDER BY id");
+    }
+
+    public List<Integer> kullaniciAlerjenIdleriGetir(Long kullaniciId) {
+        return yazma.queryForList(
+                "SELECT alerjen_id FROM kullanici_alerjenleri WHERE kullanici_id = ? ORDER BY alerjen_id",
+                Integer.class,
+                kullaniciId);
+    }
+
+    public void kullaniciAlerjenleriKaydet(Long kullaniciId, List<Integer> alerjenIdler) {
+        yazma.update("DELETE FROM kullanici_alerjenleri WHERE kullanici_id = ?", kullaniciId);
+        if (alerjenIdler != null) {
+            for (Integer alerjenId : alerjenIdler) {
+                yazma.update(
+                        "INSERT IGNORE INTO kullanici_alerjenleri (kullanici_id, alerjen_id) VALUES (?, ?)",
+                        kullaniciId, alerjenId);
+            }
+        }
+    }
+
     public List<Map<String, Object>> yemekhaneleriGetir() {
         return okuma.queryForList("SELECT id, ad, konum, kapasite FROM yemekhaneler ORDER BY id");
     }
@@ -58,7 +78,6 @@ public class YemekhaneRepository {
                 "FROM yemekler y JOIN yemek_kategorileri k ON k.id = y.kategori_id ORDER BY k.sira, y.ad");
     }
 
-    // --- MENULER (OKUMA: REPLIKA) ---
     public List<Map<String, Object>> tarihAraligiMenuleriGetir(String baslangic, String bitis, Integer yemekhaneId) {
         StringBuilder sql = new StringBuilder(
                 "SELECT d.menu_id, d.tarih, d.yemekhane_id, d.yemekhane, d.ogun_id, d.ogun, d.rezervasyon_son, " +
@@ -81,7 +100,7 @@ public class YemekhaneRepository {
     public List<Map<String, Object>> menuYemekleriniGetir(List<Long> menuIds) {
         if (menuIds.isEmpty()) return List.of();
         String placeholders = String.join(",", menuIds.stream().map(id -> "?").toList());
-        String sql = "SELECT menu_id, yemek_id, yemek, kategori, kategori_sira, kalori, vejetaryen, alerjenler " +
+        String sql = "SELECT menu_id, yemek_id, yemek, kategori, kategori_sira, kalori, vejetaryen, alerjenler, alerjen_idler " +
                      "FROM v_menu_detay WHERE menu_id IN (" + placeholders + ") " +
                      "ORDER BY menu_id, kategori_sira, yemek";
         return okuma.queryForList(sql, menuIds.toArray());
@@ -95,9 +114,9 @@ public class YemekhaneRepository {
                 menuId);
     }
 
-    // --- REZERVASYON & STORED PROCEDURE CAGRI (YAZMA: PRIMARY, LISTELEME: REPLIKA) ---
-    public Map<String, Object> spRezervasyonYap(Long kullaniciId, Long menuId) {
-        return yazma.queryForMap("CALL sp_rezervasyon_yap(?, ?)", kullaniciId, menuId);
+    public Map<String, Object> spRezervasyonYap(Long kullaniciId, Long menuId, String porsiyon) {
+        String secilenPorsiyon = (porsiyon == null || porsiyon.isBlank()) ? "tam" : porsiyon;
+        return yazma.queryForMap("CALL sp_rezervasyon_yap(?, ?, ?)", kullaniciId, menuId, secilenPorsiyon);
     }
 
     public Map<String, Object> spRezervasyonIptal(Long kullaniciId, Long rezervasyonId) {
@@ -114,7 +133,7 @@ public class YemekhaneRepository {
 
     public List<Map<String, Object>> kullaniciRezervasyonlariniGetir(Long kullaniciId) {
         return okuma.queryForList(
-                "SELECT r.id, r.menu_id, r.durum, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani, " +
+                "SELECT r.id, r.menu_id, r.porsiyon, r.durum, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani, " +
                 "m.tarih, yh.ad AS yemekhane, o.ad AS ogun, TIMESTAMP(m.tarih, o.son_saat) AS rezervasyon_son, " +
                 "(SELECT puan FROM degerlendirmeler d WHERE d.kullanici_id = r.kullanici_id AND d.menu_id = r.menu_id) AS verilen_puan " +
                 "FROM rezervasyonlar r " +
@@ -133,7 +152,6 @@ public class YemekhaneRepository {
                 kullaniciId);
     }
 
-    // --- DEGERLENDIRME (KONTROL VE YAZMA: PRIMARY) ---
     public Integer kullanilmisRezervasyonSayisi(Long kullaniciId, Long menuId) {
         return yazma.queryForObject(
                 "SELECT COUNT(*) FROM rezervasyonlar WHERE kullanici_id = ? AND menu_id = ? AND durum = 'kullanildi'",
@@ -147,7 +165,6 @@ public class YemekhaneRepository {
                 kullaniciId, menuId, puan, yorum);
     }
 
-    // --- YONETICI ISLEMLERI ---
     public Long yeniMenuOlustur(int yemekhaneId, String tarih, int ogunId, BigDecimal ogrFiyat, BigDecimal perFiyat, List<Integer> yemekIdler) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         yazma.update(con -> {

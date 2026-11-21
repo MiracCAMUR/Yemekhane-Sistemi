@@ -91,12 +91,25 @@ public class YemekhaneController {
         return zorunluKullanici(req);
     }
 
+    @PutMapping("/profil/alerjenler")
+    public Map<String, Object> profilAlerjenGuncelle(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        Map<String, Object> k = zorunluKullanici(req);
+        Long kullaniciId = ((Number) k.get("id")).longValue();
+        List<?> hamListe = (List<?>) body.get("alerjen_idler");
+        List<Integer> alerjenIdler = hamListe == null
+                ? List.of()
+                : hamListe.stream().map(x -> ((Number) x).intValue()).toList();
+        List<Integer> guncel = servis.kullaniciAlerjenleriGuncelle(kullaniciId, alerjenIdler);
+        return Map.of("alerjen_idler", guncel, "mesaj", "Alerjen tercihleriniz güncellendi.");
+    }
+
     @GetMapping("/referanslar")
     public Map<String, Object> referanslar() {
         return Map.of(
                 "yemekhaneler", servis.getRepo().yemekhaneleriGetir(),
                 "ogunler", servis.getRepo().ogunleriGetir(),
-                "yemekler", servis.getRepo().tumYemekleriGetir()
+                "yemekler", servis.getRepo().tumYemekleriGetir(),
+                "alerjenler", servis.getRepo().tumAlerjenleriGetir()
         );
     }
 
@@ -124,7 +137,8 @@ public class YemekhaneController {
         Map<String, Object> k = zorunluKullanici(req);
         Long kullaniciId = ((Number) k.get("id")).longValue();
         Long menuId = ((Number) body.get("menu_id")).longValue();
-        return servis.rezervasyonYap(kullaniciId, menuId);
+        String porsiyon = body.get("porsiyon") != null ? String.valueOf(body.get("porsiyon")) : "tam";
+        return servis.rezervasyonYap(kullaniciId, menuId, porsiyon);
     }
 
     @DeleteMapping("/rezervasyonlar/{id}")

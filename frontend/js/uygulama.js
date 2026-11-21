@@ -1,5 +1,5 @@
 let aktifKullanici = null;
-let referansVeri = { yemekhaneler: [], ogunler: [], yemekler: [] };
+let referansVeri = { yemekhaneler: [], ogunler: [], yemekler: [], alerjenler: [] };
 let turnikeLoglar = [];
 
 const bugunStr = () => new Date().toISOString().slice(0, 10);
@@ -130,6 +130,54 @@ async function referanslariYukle() {
   });
 }
 
+function profilEkraniniDoldur() {
+  if (!aktifKullanici) return;
+  const ozet = document.getElementById('profil-ozet');
+  ozet.innerHTML = '';
+  const satirlar = [
+    ['Ad Soyad', aktifKullanici.ad + ' ' + aktifKullanici.soyad],
+    ['E-posta', aktifKullanici.eposta],
+    ['Rol', aktifKullanici.rol.toUpperCase()],
+    ['Öğrenci No', aktifKullanici.ogrenci_no || '—'],
+    ['Mevcut Bakiye', paraFormat(aktifKullanici.bakiye)]
+  ];
+  satirlar.forEach(([etiket, deger]) => {
+    const div = document.createElement('div');
+    const strong = document.createElement('strong');
+    strong.textContent = etiket + ': ';
+    div.appendChild(strong);
+    div.appendChild(document.createTextNode(deger));
+    ozet.appendChild(div);
+  });
+
+  const seciliSet = new Set((aktifKullanici.alerjen_idler || []).map(Number));
+  const alerjenKutusu = document.getElementById('profil-alerjen-listesi');
+  alerjenKutusu.innerHTML = '';
+  (referansVeri.alerjenler || []).forEach(a => {
+    const lbl = document.createElement('label');
+    lbl.className = 'yemek-secim-satir';
+    lbl.style.padding = '0.35rem 0.25rem';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = a.id;
+    cb.checked = seciliSet.has(Number(a.id));
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(' ' + a.ad));
+    alerjenKutusu.appendChild(lbl);
+  });
+}
+
+function eslesenAlerjenAdlari(yemek) {
+  const kullaniciAlerjenSet = new Set((aktifKullanici?.alerjen_idler || []).map(Number));
+  if (kullaniciAlerjenSet.size === 0 || !yemek.alerjen_idler) return [];
+  const alerjenHarita = new Map((referansVeri.alerjenler || []).map(a => [Number(a.id), a.ad]));
+  return String(yemek.alerjen_idler)
+    .split(',')
+    .map(s => Number(s.trim()))
+    .filter(id => kullaniciAlerjenSet.has(id))
+    .map(id => alerjenHarita.get(id) || ('Alerjen #' + id));
+}
+
 function menuKartiOlustur(m, rezervasyonAktif = true) {
   const kart = document.createElement('article');
   kart.className = 'kart';
@@ -150,11 +198,16 @@ function menuKartiOlustur(m, rezervasyonAktif = true) {
 
   const sag = document.createElement('div');
   sag.style.textAlign = 'right';
-  const ucret = aktifKullanici.rol === 'ogrenci' ? m.ogrenci_fiyati : m.personel_fiyati;
+  const tamUcret = Number(aktifKullanici.rol === 'ogrenci' ? m.ogrenci_fiyati : m.personel_fiyati);
+  const yarimUcret = Math.round(tamUcret * 60) / 100;
+  const kahvaltiMi = Number(m.ogun_id) === 1 || String(m.ogun || '').toLowerCase().startsWith('kahvalt');
+
   const fiyatRozet = document.createElement('div');
   fiyatRozet.style.fontWeight = '700';
   fiyatRozet.style.color = 'var(--ana)';
-  fiyatRozet.textContent = paraFormat(ucret);
+  fiyatRozet.textContent = kahvaltiMi
+    ? paraFormat(tamUcret)
+    : ('Tam: ' + paraFormat(tamUcret) + ' / Yarım: ' + paraFormat(yarimUcret));
   const kaloriBilgi = document.createElement('div');
   kaloriBilgi.style.fontSize = 'var(--boyut-kucuk)';
   kaloriBilgi.style.color = 'var(--metin-soluk)';
@@ -166,10 +219,21 @@ function menuKartiOlustur(m, rezervasyonAktif = true) {
   baslik.appendChild(sag);
   kart.appendChild(baslik);
 
+  let menudekiEslesenAlerjenler = new Set();
   const ul = document.createElement('ul');
   ul.className = 'yemek-listesi';
   (m.yemekler || []).forEach(y => {
+    const eslesenler = eslesenAlerjenAdlari(y);
+    eslesenler.forEach(ad => menudekiEslesenAlerjenler.add(ad));
+
     const li = document.createElement('li');
+    if (eslesenler.length > 0) {
+      li.style.background = '#fef2f2';
+      li.style.borderLeft = '4px solid #dc2626';
+      li.style.padding = '0.35rem 0.5rem';
+      li.style.borderRadius = '4px';
+    }
+
     const adSpan = document.createElement('span');
     adSpan.textContent = y.yemek + ' ';
     const katSpan = document.createElement('span');
@@ -189,6 +253,15 @@ function menuKartiOlustur(m, rezervasyonAktif = true) {
       alr.textContent = 'Alerjen: ' + y.alerjenler;
       adSpan.appendChild(alr);
     }
+    if (eslesenler.length > 0) {
+      const uyari = document.createElement('span');
+      uyari.className = 'etiket';
+      uyari.style.background = '#dc2626';
+      uyari.style.color = '#ffffff';
+      uyari.style.fontWeight = '700';
+      uyari.textContent = '⚠ ALERJEN UYARISI: ' + eslesenler.join(', ');
+      adSpan.appendChild(uyari);
+    }
 
     const kcalSpan = document.createElement('span');
     kcalSpan.style.fontSize = 'var(--boyut-kucuk)';
@@ -199,6 +272,21 @@ function menuKartiOlustur(m, rezervasyonAktif = true) {
     li.appendChild(kcalSpan);
     ul.appendChild(li);
   });
+
+  if (menudekiEslesenAlerjenler.size > 0) {
+    const ustUyari = document.createElement('div');
+    ustUyari.style.background = '#fee2e2';
+    ustUyari.style.border = '1px solid #ef4444';
+    ustUyari.style.color = '#991b1b';
+    ustUyari.style.padding = '0.45rem 0.65rem';
+    ustUyari.style.borderRadius = '6px';
+    ustUyari.style.fontSize = 'var(--boyut-kucuk)';
+    ustUyari.style.fontWeight = '700';
+    ustUyari.style.marginBottom = '0.6rem';
+    ustUyari.textContent = '⚠ Profilinizdeki alerjenler tespit edildi: ' + Array.from(menudekiEslesenAlerjenler).join(', ');
+    kart.appendChild(ustUyari);
+  }
+
   kart.appendChild(ul);
 
   const dolulukMetin = document.createElement('div');
@@ -222,13 +310,48 @@ function menuKartiOlustur(m, rezervasyonAktif = true) {
   altButonlar.style.gap = '0.5rem';
   altButonlar.style.marginTop = '0.75rem';
   altButonlar.style.flexWrap = 'wrap';
+  altButonlar.style.alignItems = 'center';
 
   if (rezervasyonAktif) {
+    const sureDoldu = new Date(String(m.rezervasyon_son).replace(' ', 'T')) <= new Date();
+    const yerYok = Number(m.bos_yer) <= 0;
+
+    let seciliPorsiyon = 'tam';
     const rezBtn = document.createElement('button');
     rezBtn.type = 'button';
     rezBtn.className = 'dugme dugme-kucuk';
-    const sureDoldu = new Date(String(m.rezervasyon_son).replace(' ', 'T')) <= new Date();
-    const yerYok = Number(m.bos_yer) <= 0;
+
+    if (!sureDoldu && !yerYok) {
+      if (!kahvaltiMi) {
+        const porsiyonSec = document.createElement('select');
+        porsiyonSec.style.width = 'auto';
+        porsiyonSec.style.padding = '0.3rem 0.5rem';
+        porsiyonSec.style.fontSize = 'var(--boyut-kucuk)';
+        porsiyonSec.setAttribute('aria-label', 'Porsiyon Seçimi');
+
+        const optTam = document.createElement('option');
+        optTam.value = 'tam';
+        optTam.textContent = 'Tam Porsiyon (' + paraFormat(tamUcret) + ')';
+
+        const optYarim = document.createElement('option');
+        optYarim.value = 'yarim';
+        optYarim.textContent = 'Yarım Porsiyon - %60 (' + paraFormat(yarimUcret) + ')';
+
+        porsiyonSec.append(optTam, optYarim);
+        porsiyonSec.addEventListener('change', () => {
+          seciliPorsiyon = porsiyonSec.value;
+          const aktifFiyat = seciliPorsiyon === 'yarim' ? yarimUcret : tamUcret;
+          rezBtn.textContent = 'Rezervasyon Yap (' + paraFormat(aktifFiyat) + ')';
+        });
+        altButonlar.appendChild(porsiyonSec);
+      } else {
+        const kahvaltiNot = document.createElement('span');
+        kahvaltiNot.className = 'etiket';
+        kahvaltiNot.textContent = 'Sadece Tam Porsiyon';
+        altButonlar.appendChild(kahvaltiNot);
+      }
+    }
+
     if (sureDoldu) {
       rezBtn.disabled = true;
       rezBtn.textContent = 'Rezervasyon Süresi Doldu';
@@ -236,16 +359,17 @@ function menuKartiOlustur(m, rezervasyonAktif = true) {
       rezBtn.disabled = true;
       rezBtn.textContent = 'Kapasite Dolu';
     } else {
-      rezBtn.textContent = 'Rezervasyon Yap (' + paraFormat(ucret) + ')';
+      rezBtn.textContent = 'Rezervasyon Yap (' + paraFormat(tamUcret) + ')';
       rezBtn.addEventListener('click', async () => {
         try {
           const sonuc = await apiIstek('/rezervasyonlar', {
             method: 'POST',
-            body: JSON.stringify({ menu_id: m.menu_id })
+            body: JSON.stringify({ menu_id: m.menu_id, porsiyon: seciliPorsiyon })
           });
           aktifKullanici.bakiye = sonuc.bakiye;
           kullaniciUstCubukGuncelle();
-          bildirimGoster('Rezervasyon onaylandı! Kalan bakiye: ' + paraFormat(sonuc.bakiye), 'basari');
+          const porsiyonMetni = sonuc.porsiyon === 'yarim' ? 'Yarım Porsiyon' : 'Tam Porsiyon';
+          bildirimGoster('Rezervasyon onaylandı (' + porsiyonMetni + ' - ' + paraFormat(sonuc.ucret) + ')! Kalan bakiye: ' + paraFormat(sonuc.bakiye), 'basari');
           gunlukMenuleriYukle();
         } catch (err) {
           bildirimGoster(err.message, 'hata');
@@ -328,7 +452,7 @@ async function rezervasyonlariYukle() {
   const tbody = document.getElementById('rezervasyon-tablo');
   tbody.innerHTML = '';
   if (liste.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5">Henüz rezervasyonunuz bulunmuyor.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6">Henüz rezervasyonunuz bulunmuyor.</td></tr>';
     return;
   }
   liste.forEach(r => {
@@ -337,6 +461,8 @@ async function rezervasyonlariYukle() {
     td1.textContent = r.tarih + ' · ' + r.ogun;
     const td2 = document.createElement('td');
     td2.textContent = r.yemekhane;
+    const tdPorsiyon = document.createElement('td');
+    tdPorsiyon.textContent = (r.porsiyon || 'tam') === 'yarim' ? 'YARIM (%60)' : 'TAM';
     const td3 = document.createElement('td');
     td3.textContent = paraFormat(r.ucret);
     const td4 = document.createElement('td');
@@ -376,7 +502,7 @@ async function rezervasyonlariYukle() {
       td5.textContent = '—';
     }
 
-    tr.append(td1, td2, td3, td4, td5);
+    tr.append(td1, td2, tdPorsiyon, td3, td4, td5);
     tbody.appendChild(tr);
   });
 }
@@ -479,6 +605,7 @@ async function oturumBaslat() {
   document.getElementById('ana-panel').classList.remove('gizli');
   kullaniciUstCubukGuncelle();
   await referanslariYukle();
+  profilEkraniniDoldur();
   const bugun = bugunStr();
   document.getElementById('filtre-tarih').value = bugun;
   document.getElementById('hafta-baslangic').value = bugun;
@@ -527,16 +654,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('.sekme-btn').forEach(b => b.classList.remove('aktif'));
       btn.classList.add('aktif');
       const hedef = btn.dataset.sekme;
-      ['gunluk', 'haftalik', 'rezervasyonlar', 'bakiye', 'turnike', 'yonetici'].forEach(p => {
+      ['gunluk', 'haftalik', 'rezervasyonlar', 'bakiye', 'profil', 'turnike', 'yonetici'].forEach(p => {
         document.getElementById('panel-' + p).classList.toggle('gizli', p !== hedef);
       });
       if (hedef === 'gunluk') await gunlukMenuleriYukle();
       if (hedef === 'haftalik') await haftalikMenuleriYukle();
       if (hedef === 'rezervasyonlar') await rezervasyonlariYukle();
       if (hedef === 'bakiye') await bakiyeHareketleriniYukle();
+      if (hedef === 'profil') profilEkraniniDoldur();
       if (hedef === 'turnike') await turnikeKullanicilariniYukle();
       if (hedef === 'yonetici') await yoneticiRaporYukle();
     });
+  });
+
+  document.getElementById('form-profil-alerjen').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const seciliAlerjenler = Array.from(document.querySelectorAll('#profil-alerjen-listesi input:checked'))
+        .map(cb => Number(cb.value));
+      const sonuc = await apiIstek('/profil/alerjenler', {
+        method: 'PUT',
+        body: JSON.stringify({ alerjen_idler: seciliAlerjenler })
+      });
+      aktifKullanici.alerjen_idler = sonuc.alerjen_idler;
+      bildirimGoster('Alerjen tercihleriniz kaydedildi! Menülerde seçtiğiniz alerjenler uyarıyla gösterilecek.', 'basari');
+    } catch (err) {
+      bildirimGoster(err.message, 'hata');
+    }
   });
 
   document.getElementById('btn-gunluk-getir').addEventListener('click', gunlukMenuleriYukle);
@@ -598,6 +742,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       aktifKullanici.bakiye = sonuc.bakiye;
       kullaniciUstCubukGuncelle();
+      profilEkraniniDoldur();
       bildirimGoster('Bakiye yüklendi! Yeni bakiye: ' + paraFormat(sonuc.bakiye), 'basari');
       await bakiyeHareketleriniYukle();
     } catch (err) {

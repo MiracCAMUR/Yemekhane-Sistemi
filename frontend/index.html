@@ -23,7 +23,6 @@
   <main class="kapsayici" style="padding-block: 1.25rem;">
     <div id="global-bildirim" role="status" aria-live="polite" style="margin-bottom: 1rem;"></div>
 
-    <!-- 1. GIRIS EKRANI -->
     <section id="ekran-giris" class="kart" style="max-width: 440px; margin: 1.5rem auto;">
       <h1>Oturum Aç</h1>
       <p style="color: var(--metin-soluk); font-size: var(--boyut-kucuk);">
@@ -52,18 +51,17 @@
       </div>
     </section>
 
-    <!-- OTURUM ACILMIS ANA ALAN -->
     <div id="ana-panel" class="gizli">
       <nav class="sekme-cubugu" aria-label="Ana Menü">
         <button type="button" class="sekme-btn aktif" data-sekme="gunluk">Günün Menüsü</button>
         <button type="button" class="sekme-btn" data-sekme="haftalik">Haftalık Menü</button>
         <button type="button" class="sekme-btn" data-sekme="rezervasyonlar">Rezervasyonlarım</button>
         <button type="button" class="sekme-btn" data-sekme="bakiye">Bakiye &amp; Hareketler</button>
+        <button type="button" class="sekme-btn" data-sekme="profil">Profil &amp; Alerjenler</button>
         <button type="button" class="sekme-btn" data-sekme="turnike">Turnike Simülasyonu</button>
         <button type="button" id="sekme-yonetici-btn" class="sekme-btn gizli" data-sekme="yonetici">Yönetici Paneli</button>
       </nav>
 
-      <!-- 2. GUNUN MENUSU -->
       <section id="panel-gunluk">
         <div class="kart filtre-satiri">
           <div>
@@ -84,7 +82,6 @@
         <div id="gunluk-liste" class="izgara-2"></div>
       </section>
 
-      <!-- 3. HAFTALIK MENU -->
       <section id="panel-haftalik" class="gizli">
         <div class="kart">
           <div class="filtre-satiri">
@@ -107,12 +104,11 @@
         </div>
       </section>
 
-      <!-- 4 & 6. REZERVASYONLARIM VE DEGERLENDIRME -->
       <section id="panel-rezervasyonlar" class="gizli">
         <div class="kart">
           <h2>Rezervasyonlarım</h2>
           <p style="font-size: var(--boyut-kucuk); color: var(--metin-soluk);">
-            Son saati geçmemiş aktif rezervasyonlarınızı iptal edebilir, turnikeden geçerek kullandığınız öğünleri değerlendirebilirsiniz.
+            Son saati geçmemiş aktif rezervasyonlarınızı iptal edebilir, turnikeden geçerek kullandığınız öğünleri değerlendirebilirsiniz. Geçmiş rezervasyonlar tam porsiyon sayılır.
           </p>
           <div class="tablo-kaydir">
             <table class="tablo">
@@ -120,6 +116,7 @@
                 <tr>
                   <th>Tarih &amp; Öğün</th>
                   <th>Yemekhane</th>
+                  <th>Porsiyon</th>
                   <th>Ücret</th>
                   <th>Durum</th>
                   <th>İşlem</th>
@@ -154,7 +151,6 @@
         </div>
       </section>
 
-      <!-- 5. BAKIYE YUKLEME VE HAREKET GECMISI -->
       <section id="panel-bakiye" class="gizli">
         <div class="izgara-2">
           <div class="kart">
@@ -196,7 +192,26 @@
         </div>
       </section>
 
-      <!-- 8. TURNIKE SIMULASYONU (ASAMA 3) -->
+      <section id="panel-profil" class="gizli">
+        <div class="izgara-2">
+          <div class="kart">
+            <h2>Kullanıcı Profil Bilgileri</h2>
+            <div id="profil-ozet" style="font-size: var(--boyut-kucuk); line-height: 1.8;"></div>
+          </div>
+
+          <div class="kart">
+            <h2>Alerjen Tercihlerim</h2>
+            <p style="font-size: var(--boyut-kucuk); color: var(--metin-soluk);">
+              Hassasiyetiniz veya alerjiniz bulunan maddeleri işaretleyin. Günün ve haftanın menülerinde bu alerjenleri içeren yemekler özel uyarıyla işaretlenecektir.
+            </p>
+            <form id="form-profil-alerjen">
+              <div id="profil-alerjen-listesi" class="yemek-secim-kutusu" style="margin-bottom: 0.85rem; max-height: none;"></div>
+              <button type="submit" class="dugme" style="width: 100%;">Alerjen Tercihlerimi Kaydet</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <section id="panel-turnike" class="gizli">
         <div class="izgara-2">
           <div class="kart">
@@ -248,7 +263,6 @@
         </div>
       </section>
 
-      <!-- 7. YONETICI PANELI -->
       <section id="panel-yonetici" class="gizli">
         <div class="izgara-2">
           <div class="kart">
